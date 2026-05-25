@@ -34,7 +34,7 @@ let
     };
   };
 
-  settingsToml = pkgs.formats.toml.generate "rsagent-config.toml" {
+  settingsToml = (pkgs.formats.toml { }).generate "rsagent-config.toml" {
     llm = {
       base_url = cfg.settings.llm.baseUrl;
       model = cfg.settings.llm.model;

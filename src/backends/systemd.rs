@@ -61,8 +61,8 @@ fn unit_status_linux(unit: &str) -> Result<String> {
 #[cfg(all(target_os = "linux", feature = "systemd"))]
 async fn unit_status_linux_async(unit: &str) -> Result<String> {
 	use zbus::zvariant::OwnedObjectPath;
-	use zbus_systemd::systemd1::manager::ManagerProxy;
-	use zbus_systemd::systemd1::unit::UnitProxy;
+	use zbus_systemd::systemd1::ManagerProxy;
+	use zbus_systemd::systemd1::UnitProxy;
 
 	let connection = zbus::Connection::system()
 		.await
@@ -73,7 +73,7 @@ async fn unit_status_linux_async(unit: &str) -> Result<String> {
 		.map_err(|e| RsagentError::tool("systemd.unit_status", e.to_string()))?;
 
 	let unit_path: OwnedObjectPath = manager
-		.get_unit(unit)
+		.get_unit(unit.to_string())
 		.await
 		.map_err(|e| RsagentError::tool("systemd.unit_status", e.to_string()))?;
 
@@ -111,7 +111,7 @@ fn list_units_linux(filter: Option<&str>) -> Result<String> {
 
 #[cfg(all(target_os = "linux", feature = "systemd"))]
 async fn list_units_linux_async(filter: Option<&str>) -> Result<String> {
-	use zbus_systemd::systemd1::manager::ManagerProxy;
+	use zbus_systemd::systemd1::ManagerProxy;
 
 	let connection = zbus::Connection::system()
 		.await

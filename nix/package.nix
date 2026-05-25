@@ -1,6 +1,7 @@
 {
   lib,
   rustPlatform,
+  openssl,
   pkg-config,
   systemd,
   stdenv,
@@ -17,10 +18,13 @@ rustPlatform.buildRustPackage {
   buildFeatures = lib.optionals stdenv.hostPlatform.isLinux [ "systemd" "docker" ];
 
   nativeBuildInputs = [ pkg-config ];
-  buildInputs = lib.optionals stdenv.hostPlatform.isLinux [ systemd ];
+  buildInputs = lib.optionals stdenv.hostPlatform.isLinux [
+    systemd
+    openssl
+  ];
 
   env = lib.optionalAttrs stdenv.hostPlatform.isLinux {
-    PKG_CONFIG_PATH = "${systemd}/lib/pkgconfig";
+    PKG_CONFIG_PATH = "${systemd}/lib/pkgconfig:${openssl.dev}/lib/pkgconfig";
   };
 
   meta = with lib; {
