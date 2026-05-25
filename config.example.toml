@@ -1,0 +1,38 @@
+[llm]
+base_url = "https://api.fireworks.ai/inference/v1"
+model = "accounts/fireworks/routers/kimi-k2p6-turbo"
+# Prefer FIREWORKS_API_KEY via env or /etc/rsagent/environment
+# api_key = "fw-..."
+
+[agent]
+system_prompt = "You are a concise server operations assistant."
+max_steps = 10
+
+[[tools]]
+name = "memory_usage"
+description = "Current host memory usage"
+kind = "host.memory"
+
+[[tools]]
+name = "root_disk"
+description = "Disk usage for the root filesystem"
+kind = "host.disk"
+[tools.params]
+mount = "/"
+
+[[tools]]
+name = "nginx_status"
+description = "Active state of nginx.service"
+kind = "systemd.unit_status"
+[tools.params]
+allowed_units = ["nginx.service"]
+
+[[tools]]
+name = "nginx_errors"
+description = "Recent nginx error-priority journal entries"
+kind = "journal.query"
+[tools.params]
+unit = "nginx"
+since = "-1h"
+priority = "3"
+max_lines = 100
