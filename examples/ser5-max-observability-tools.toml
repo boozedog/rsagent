@@ -1,0 +1,178 @@
+# Example rsagent tool profile for ser5-max (observability hub).
+# Use with: RSAGENT_CONFIG=examples/ser5-max-observability-tools.toml rsagent
+
+[llm]
+base_url = "https://api.fireworks.ai/inference/v1"
+model = "accounts/fireworks/routers/kimi-k2p6-turbo"
+
+[agent]
+system_prompt = """
+You are a read-only observability assistant on ser5-max (Grafana, Prometheus, Loki, Alertmanager).
+Use tools to inspect stack and fleet health. Never suggest mutating commands (restart, rebuild, SQL writes).
+Prefer: firing alerts -> Prometheus metrics -> Loki logs -> systemd/journal on this host.
+"""
+max_steps = 12
+
+# --- Host ---
+
+[[tools]]
+name = "memory"
+description = "Current host memory usage"
+kind = "host.memory"
+
+[[tools]]
+name = "load"
+description = "Load average and uptime"
+kind = "host.load"
+
+[[tools]]
+name = "root_disk"
+description = "Root filesystem usage"
+kind = "host.disk"
+[tools.params]
+mount = "/"
+
+[[tools]]
+name = "shared_disk"
+description = "Gluster mount usage"
+kind = "host.disk"
+[tools.params]
+mount = "/mnt/shared"
+
+[[tools]]
+name = "nixos_revision"
+description = "Deployed NixOS revision"
+kind = "host.nixos_revision"
+
+[[tools]]
+name = "zfs_pools"
+description = "ZFS pool health"
+kind = "zfs.pool_status"
+[tools.params]
+pools = ["rpool"]
+
+[[tools]]
+name = "tailscale"
+description = "Tailscale mesh status (JSON)"
+kind = "tailscale.status"
+
+# --- Fleet observability APIs (localhost on ser5-max) ---
+
+[[tools]]
+name = "firing_alerts"
+description = "Currently firing Alertmanager alerts"
+kind = "alertmanager.alerts"
+[tools.params]
+base_url = "http://127.0.0.1:9093"
+
+[[tools]]
+name = "prometheus_up"
+description = "Prometheus instant query (up metric and general PromQL)"
+kind = "prometheus.query"
+[tools.params]
+base_url = "http://127.0.0.1:9090"
+allowed_query_prefixes = ["up", "ALERTS", "node_", "zfs_", "count("]
+
+[[tools]]
+name = "loki_errors"
+description = "LogQL query against central Loki"
+kind = "loki.query"
+[tools.params]
+base_url = "http://127.0.0.1:3030"
+since = "1h"
+max_lines = 200
+allowed_query_prefixes = ["{", "sum("]
+
+[[tools]]
+name = "prometheus_healthy"
+description = "Prometheus ready/healthy endpoint"
+kind = "http.health"
+[tools.params]
+allowed_urls = [
+  "http://127.0.0.1:9090/-/healthy",
+  "http://127.0.0.1:3030/ready",
+]
+
+# --- Observability stack systemd ---
+
+[[tools]]
+name = "grafana_status"
+description = "Grafana systemd unit state"
+kind = "systemd.unit_status"
+[tools.params]
+allowed_units = ["grafana.service"]
+
+[[tools]]
+name = "prometheus_status"
+description = "Prometheus systemd unit state"
+kind = "systemd.unit_status"
+[tools.params]
+allowed_units = ["prometheus.service"]
+
+[[tools]]
+name = "loki_status"
+description = "Loki systemd unit state"
+kind = "systemd.unit_status"
+[tools.params]
+allowed_units = ["loki.service"]
+
+[[tools]]
+name = "alertmanager_status"
+description = "Alertmanager systemd unit state"
+kind = "systemd.unit_status"
+[tools.params]
+allowed_units = ["alertmanager.service"]
+
+[[tools]]
+name = "failed_units"
+description = "List systemd units in failed state"
+kind = "systemd.list_units"
+
+# --- Stack journals ---
+
+[[tools]]
+name = "loki_logs"
+description = "Recent Loki service errors"
+kind = "journal.query"
+[tools.params]
+unit = "loki"
+since = "-1h"
+priority = "3"
+max_lines = 100
+
+[[tools]]
+name = "prometheus_logs"
+description = "Recent Prometheus service errors"
+kind = "journal.query"
+[tools.params]
+unit = "prometheus"
+since = "-1h"
+priority = "3"
+max_lines = 100
+
+[[tools]]
+name = "grafana_logs"
+description = "Recent Grafana service errors"
+kind = "journal.query"
+[tools.params]
+unit = "grafana"
+since = "-1h"
+priority = "3"
+max_lines = 100
+
+[[tools]]
+name = "alertmanager_logs"
+description = "Recent Alertmanager service errors"
+kind = "journal.query"
+[tools.params]
+unit = "alertmanager"
+since = "-1h"
+priority = "3"
+max_lines = 100
+
+# --- Docker (optional; requires docker build feature) ---
+
+[[tools]]
+name = "docker_containers"
+description = "List Docker containers"
+kind = "docker.list"

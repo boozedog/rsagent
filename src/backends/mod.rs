@@ -1,6 +1,16 @@
+mod command;
+mod docker;
+mod fail2ban;
+mod gluster;
 mod host;
+mod http_client;
+mod http_health;
 mod journal;
+mod observability;
 mod systemd;
+mod tailscale;
+mod url_util;
+mod zfs;
 
 use std::collections::HashMap;
 
@@ -18,9 +28,20 @@ pub fn run_tool(tool: &ToolConfig, input: Value) -> Result<String> {
 	let output = match tool.kind.as_str() {
 		"host.memory" => host::memory(&tool.params, input),
 		"host.disk" => host::disk(&tool.params, input),
+		"host.load" => host::load(&tool.params, input),
+		"host.nixos_revision" => host::nixos_revision(&tool.params, input),
 		"systemd.unit_status" => systemd::unit_status(&tool.params, input),
 		"systemd.list_units" => systemd::list_units(&tool.params, input),
 		"journal.query" => journal::query(&tool.params, input),
+		"prometheus.query" => observability::prometheus_query(&tool.params, input),
+		"loki.query" => observability::loki_query(&tool.params, input),
+		"alertmanager.alerts" => observability::alertmanager_alerts(&tool.params, input),
+		"http.health" => http_health::health(&tool.params, input),
+		"fail2ban.status" => fail2ban::status(&tool.params, input),
+		"tailscale.status" => tailscale::status(&tool.params, input),
+		"zfs.pool_status" => zfs::pool_status(&tool.params, input),
+		"gluster.status" => gluster::status(&tool.params, input),
+		"docker.list" => docker::list(&tool.params, input),
 		other => Err(RsagentError::tool(
 			&tool.name,
 			format!("unknown tool kind `{other}`"),
@@ -32,18 +53,26 @@ pub fn run_tool(tool: &ToolConfig, input: Value) -> Result<String> {
 
 pub fn input_schema(tool: &ToolConfig) -> Schema {
 	match tool.kind.as_str() {
-		"host.memory" => schemars::schema_for!(EmptyInput),
+		"host.memory" | "host.load" | "host.nixos_revision" | "tailscale.status" | "zfs.pool_status"
+		| "gluster.status" => schemars::schema_for!(EmptyInput),
 		"host.disk" => schemars::schema_for!(DiskInput),
 		"systemd.unit_status" => schemars::schema_for!(UnitInput),
 		"systemd.list_units" => schemars::schema_for!(ListUnitsInput),
 		"journal.query" => schemars::schema_for!(JournalInput),
+		"prometheus.query" => schemars::schema_for!(observability::PrometheusInput),
+		"loki.query" => schemars::schema_for!(observability::LokiInput),
+		"alertmanager.alerts" => schemars::schema_for!(observability::AlertmanagerInput),
+		"http.health" => schemars::schema_for!(http_health::HttpHealthInput),
+		"fail2ban.status" => schemars::schema_for!(fail2ban::Fail2banInput),
+		"docker.list" => schemars::schema_for!(docker::DockerListInput),
 		_ => schemars::schema_for!(EmptyInput),
 	}
 }
 
 pub fn validate_tool(tool: &ToolConfig) -> Result<()> {
 	match tool.kind.as_str() {
-		"host.memory" => Ok(()),
+		"host.memory" | "host.load" => Ok(()),
+		"host.nixos_revision" => Ok(()),
 		"host.disk" => {
 			let _mount = param_string(&tool.params, "mount").unwrap_or_else(|_| "/".into());
 			Ok(())
@@ -57,6 +86,15 @@ pub fn validate_tool(tool: &ToolConfig) -> Result<()> {
 			param_string(&tool.params, "unit")?;
 			Ok(())
 		}
+		"prometheus.query" => observability::validate_prometheus(&tool.params),
+		"loki.query" => observability::validate_loki(&tool.params),
+		"alertmanager.alerts" => observability::validate_alertmanager(&tool.params),
+		"http.health" => http_health::validate_health(&tool.params),
+		"fail2ban.status" => fail2ban::validate_fail2ban(&tool.params),
+		"tailscale.status" => tailscale::validate_tailscale(&tool.params),
+		"zfs.pool_status" => zfs::validate_zfs(&tool.params),
+		"gluster.status" => gluster::validate_gluster(&tool.params),
+		"docker.list" => docker::validate_docker(&tool.params),
 		other => Err(RsagentError::config(format!(
 			"tool `{}`: unknown kind `{other}`",
 			tool.name
@@ -146,6 +184,29 @@ pub(crate) fn ensure_allowed_units(params: &HashMap<String, toml::Value>) -> Res
 		.collect();
 
 	names
+}
+
+pub(crate) fn ensure_allowed_strings(
+	params: &HashMap<String, toml::Value>,
+	key: &str,
+) -> Result<Vec<String>> {
+	let Some(value) = params.get(key) else {
+		return Ok(Vec::new());
+	};
+
+	let items = value.as_array().ok_or_else(|| {
+		RsagentError::config(format!("params.{key} must be an array of strings"))
+	})?;
+
+	items
+		.iter()
+		.map(|entry| {
+			entry
+				.as_str()
+				.map(str::to_string)
+				.ok_or_else(|| RsagentError::config(format!("params.{key} entries must be strings")))
+		})
+		.collect()
 }
 
 pub(crate) fn validate_unit(

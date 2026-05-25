@@ -14,7 +14,7 @@ rustPlatform.buildRustPackage {
 
   cargoLock.lockFile = ../Cargo.lock;
 
-  buildFeatures = lib.optionals stdenv.hostPlatform.isLinux [ "systemd" ];
+  buildFeatures = lib.optionals stdenv.hostPlatform.isLinux [ "systemd" "docker" ];
 
   nativeBuildInputs = [ pkg-config ];
   buildInputs = lib.optionals stdenv.hostPlatform.isLinux [ systemd ];
