@@ -235,6 +235,22 @@ pub(crate) fn validate_unit(
 	Ok(())
 }
 
+/// Run async backend code from a synchronous tool handler.
+///
+/// Tool callbacks are invoked on the tokio runtime while the agent is in
+/// interactive/ask mode; `Handle::block_on` on a worker thread panics unless
+/// we first yield the worker via `block_in_place`.
+#[cfg(any(
+	all(target_os = "linux", feature = "systemd"),
+	feature = "docker"
+))]
+pub(crate) fn block_on_tool<F, T>(f: F) -> T
+where
+	F: std::future::Future<Output = T>,
+{
+	tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(f))
+}
+
 fn truncate(text: &str) -> String {
 	if text.len() <= MAX_OUTPUT_CHARS {
 		return text.to_string();

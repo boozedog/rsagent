@@ -2,6 +2,8 @@ use std::collections::HashMap;
 
 use serde_json::Value;
 
+#[cfg(feature = "docker")]
+use crate::backends::block_on_tool;
 use crate::backends::parse_input;
 use crate::error::{Result, RsagentError};
 
@@ -45,9 +47,7 @@ fn list_docker(params: &HashMap<String, toml::Value>, filter: Option<&str>) -> R
 
 	let prefix = param_string_opt(params, "name_prefix");
 
-	tokio::runtime::Handle::try_current()
-		.map_err(|e| RsagentError::tool("docker.list", e.to_string()))?
-		.block_on(async { list_docker_async(prefix.as_deref(), filter).await })
+	block_on_tool(list_docker_async(prefix.as_deref(), filter))
 }
 
 #[cfg(feature = "docker")]

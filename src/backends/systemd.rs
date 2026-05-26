@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use serde_json::Value;
 
 use super::{ListUnitsInput, UnitInput};
+#[cfg(all(target_os = "linux", feature = "systemd"))]
+use crate::backends::block_on_tool;
 use crate::backends::{ensure_allowed_units, parse_input, validate_unit};
 use crate::error::{Result, RsagentError};
 
@@ -53,9 +55,7 @@ pub fn list_units(params: &HashMap<String, toml::Value>, input: Value) -> Result
 
 #[cfg(all(target_os = "linux", feature = "systemd"))]
 fn unit_status_linux(unit: &str) -> Result<String> {
-	tokio::runtime::Handle::try_current()
-		.map_err(|e| RsagentError::tool("systemd.unit_status", e.to_string()))?
-		.block_on(async { unit_status_linux_async(unit).await })
+	block_on_tool(unit_status_linux_async(unit))
 }
 
 #[cfg(all(target_os = "linux", feature = "systemd"))]
@@ -104,9 +104,7 @@ async fn unit_status_linux_async(unit: &str) -> Result<String> {
 
 #[cfg(all(target_os = "linux", feature = "systemd"))]
 fn list_units_linux(filter: Option<&str>) -> Result<String> {
-	tokio::runtime::Handle::try_current()
-		.map_err(|e| RsagentError::tool("systemd.list_units", e.to_string()))?
-		.block_on(async { list_units_linux_async(filter).await })
+	block_on_tool(list_units_linux_async(filter))
 }
 
 #[cfg(all(target_os = "linux", feature = "systemd"))]
